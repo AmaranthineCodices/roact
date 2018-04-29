@@ -18,6 +18,12 @@ local defaultConfig = {
 	["elementTracing"] = false,
 	-- Enables instrumentation of shouldUpdate and render methods for Roact components
 	["componentInstrumentation"] = false,
+	-- Controls primitive property deduplication.
+	["primitiveDeduplication"] = true,
+	-- Disables resetting-to-default-value behavior.
+	["resetToDefault"] = true,
+	-- Disables expensive error handling in a number of places.
+	["errorHandling"] = true,
 }
 
 -- Build a list of valid configuration values up for debug messages.

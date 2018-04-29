@@ -28,6 +28,7 @@ local Change = require(script.Parent.Change)
 local getDefaultPropertyValue = require(script.Parent.getDefaultPropertyValue)
 local SingleEventManager = require(script.Parent.SingleEventManager)
 local Symbol = require(script.Parent.Symbol)
+local GlobalConfig = require(script.Parent.GlobalConfig)
 
 local isInstanceHandle = Symbol.named("isInstanceHandle")
 
@@ -421,37 +422,61 @@ end
 function Reconciler._reconcilePrimitiveProps(fromElement, toElement, rbx)
 	local seenProps = {}
 
-	-- Set properties that were set with fromElement
-	for key, oldValue in pairs(fromElement.props) do
-		seenProps[key] = true
+	local dedup = GlobalConfig.getValue("primitiveDeduplication")
+	local default = GlobalConfig.getValue("resetToDefault")
 
-		local newValue = toElement.props[key]
+	-- When reset-to-default is disabled we can take a fast path where we only
+	-- iterate over the new element's properties. This can cause some serious
+	-- reconciler bugs if turned off.
+	if not default then
+		-- Inline the deduplication if statement.
+		-- I'm not sure how much this does.
+		if dedup then
+			local oldProps = fromElement.props
 
-		-- Assume any property that can be set to nil has a default value of nil
-		if newValue == nil then
-			local _, value = getDefaultPropertyValue(rbx.ClassName, key)
-
-			-- We don't care if getDefaultPropertyValue fails, because
-			-- _setRbxProp will catch the error below.
-			newValue = value
+			for key, value in pairs(toElement.props) do
+				if oldProps[key] ~= value then
+					Reconciler._setRbxProp(rbx, key, value, toElement)
+				end
+			end
+		else
+			for key, value in pairs(toElement.props) do
+				Reconciler._setRbxProp(rbx, key, value, toElement)
+			end
 		end
-
-		-- Roblox does this check for normal values, but we have special
-		-- properties like events that warrant this.
-		if oldValue ~= newValue then
-			Reconciler._setRbxProp(rbx, key, newValue, toElement)
-		end
-	end
-
-	-- Set properties that are new in toElement
-	for key, newValue in pairs(toElement.props) do
-		if not seenProps[key] then
+	else
+		-- Set properties that were set with fromElement
+		for key, oldValue in pairs(fromElement.props) do
 			seenProps[key] = true
 
-			local oldValue = fromElement.props[key]
+			local newValue = toElement.props[key]
 
-			if oldValue ~= newValue then
+			-- Assume any property that can be set to nil has a default value of nil
+			if newValue == nil then
+				local _, value = getDefaultPropertyValue(rbx.ClassName, key)
+
+				-- We don't care if getDefaultPropertyValue fails, because
+				-- _setRbxProp will catch the error below.
+				newValue = value
+			end
+
+			-- Roblox does this check for normal values, but we have special
+			-- properties like events that warrant this.
+			if not dedup or oldValue ~= newValue then
 				Reconciler._setRbxProp(rbx, key, newValue, toElement)
+			end
+		end
+
+		-- Set properties that are new in toElement
+		for key, newValue in pairs(toElement.props) do
+			if not seenProps[key] then
+				seenProps[key] = true
+
+				local oldValue = fromElement.props[key]
+
+				if not dedup or oldValue ~= newValue then
+					Reconciler._setRbxProp(rbx, key, newValue, toElement)
+				end
 			end
 		end
 	end
@@ -476,22 +501,28 @@ end
 	was created.
 ]]
 function Reconciler._setRbxProp(rbx, key, value, element)
+	local errorHandling = GlobalConfig.getValue("errorHandling")
+
 	if type(key) == "string" then
 		-- Regular property
 
-		local success, err = pcall(set, rbx, key, value)
+		if errorHandling then
+			local success, err = pcall(set, rbx, key, value)
 
-		if not success then
-			local source = element.source or DEFAULT_SOURCE
+			if not success then
+				local source = element.source or DEFAULT_SOURCE
 
-			local message = ("Failed to set property %s on primitive instance of class %s\n%s\n%s"):format(
-				key,
-				rbx.ClassName,
-				err,
-				source
-			)
+				local message = ("Failed to set property %s on primitive instance of class %s\n%s\n%s"):format(
+					key,
+					rbx.ClassName,
+					err,
+					source
+				)
 
-			error(message, 0)
+				error(message, 0)
+			end
+		else
+			rbx[key] = value
 		end
 	elseif type(key) == "table" then
 		-- Special property with extra data attached.
