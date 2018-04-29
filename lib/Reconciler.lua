@@ -34,6 +34,8 @@ local isInstanceHandle = Symbol.named("isInstanceHandle")
 
 local DEFAULT_SOURCE = "\n\t<Use Roact.setGlobalConfig with the 'elementTracing' key to enable detailed tracebacks>\n"
 
+local next, pairs = next, pairs
+
 local function isPortal(element)
 	if type(element) ~= "table" then
 		return false
@@ -434,13 +436,13 @@ function Reconciler._reconcilePrimitiveProps(fromElement, toElement, rbx)
 		if dedup then
 			local oldProps = fromElement.props
 
-			for key, value in pairs(toElement.props) do
+			for key, value in next, toElement.props do
 				if oldProps[key] ~= value then
 					Reconciler._setRbxProp(rbx, key, value, toElement)
 				end
 			end
 		else
-			for key, value in pairs(toElement.props) do
+			for key, value in next, toElement.props do
 				Reconciler._setRbxProp(rbx, key, value, toElement)
 			end
 		end
