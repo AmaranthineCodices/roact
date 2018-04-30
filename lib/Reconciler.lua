@@ -429,7 +429,8 @@ function Reconciler._reconcilePrimitiveProps(fromElement, toElement, rbx)
 
 	-- When reset-to-default is disabled we can take a fast path where we only
 	-- iterate over the new element's properties. This can cause some serious
-	-- reconciler bugs if turned off.
+	-- bugs in components if you develop using this behavior, so it's opt-in
+	-- only.
 	if not default then
 		-- Inline the deduplication if statement.
 		-- I'm not sure how much this does.
