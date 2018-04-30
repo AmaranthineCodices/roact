@@ -509,7 +509,11 @@ function Reconciler._setRbxProp(rbx, key, value, element)
 	if type(key) == "string" then
 		-- Regular property
 
-		if errorHandling then
+		-- Fast-path to disable using pcall
+		-- This has a small, but noticeable performance improvement associated.
+		if not errorHandling then
+			rbx[key] = value
+		else
 			local success, err = pcall(set, rbx, key, value)
 
 			if not success then
@@ -524,8 +528,6 @@ function Reconciler._setRbxProp(rbx, key, value, element)
 
 				error(message, 0)
 			end
-		else
-			rbx[key] = value
 		end
 	elseif type(key) == "table" then
 		-- Special property with extra data attached.
